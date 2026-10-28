@@ -3,457 +3,1125 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hans QR Generator</title>
+<title>Frame Extractor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --canvas:#F7F6F3;
+    --canvas:#FBFBFA;
     --surface:#FFFFFF;
+    --surface-2:#F7F6F3;
     --ink:#111111;
-    --ink-soft:#2F3437;
+    --text:#2F3437;
     --muted:#787774;
     --line:#EAEAEA;
-    --tag-bg:#E1F3FE;
-    --tag-ink:#1F6C9F;
-    --warn-bg:#FBF3DB;
-    --warn-ink:#956400;
-    --ok-bg:#EDF3EC;
-    --ok-ink:#346538;
-    --err-bg:#FDEBEC;
-    --err-ink:#9F2F2D;
-    --sans:'SF Pro Display','Geist Sans','Helvetica Neue',Helvetica,Arial,sans-serif;
-    --serif:'Newsreader','Lyon Text','Instrument Serif',Georgia,serif;
-    --mono:'JetBrains Mono','Geist Mono','SF Mono',ui-monospace,monospace;
-  }
-  @media (prefers-color-scheme: dark){
-    :root:not([data-theme="light"]){
-      --canvas:#141413;--surface:#1B1B1A;--ink:#F2F1EE;--ink-soft:#E3E1DC;--muted:#9A968E;--line:#2C2C2A;
-      --tag-bg:#1C2E3A;--tag-ink:#9AC9E8;--warn-bg:#332B18;--warn-ink:#D6B063;--ok-bg:#1D2A1E;--ok-ink:#9CC5A0;--err-bg:#331F1F;--err-ink:#E09B99;
-    }
-  }
-  :root[data-theme="dark"]{
-    --canvas:#141413;--surface:#1B1B1A;--ink:#F2F1EE;--ink-soft:#E3E1DC;--muted:#9A968E;--line:#2C2C2A;
-    --tag-bg:#1C2E3A;--tag-ink:#9AC9E8;--warn-bg:#332B18;--warn-ink:#D6B063;--ok-bg:#1D2A1E;--ok-ink:#9CC5A0;--err-bg:#331F1F;--err-ink:#E09B99;
-  }
 
+    --red-bg:#FDEBEC;--red-tx:#9F2F2D;
+    --blue-bg:#E1F3FE;--blue-tx:#1F6C9F;
+    --green-bg:#EDF3EC;--green-tx:#346538;
+    --yellow-bg:#FBF3DB;--yellow-tx:#956400;
+
+    --sans:'SF Pro Display','Geist','Helvetica Neue','Switzer',system-ui,sans-serif;
+    --serif:'Lyon Text','Newsreader','Instrument Serif','Playfair Display',Georgia,serif;
+    --mono:'Geist Mono','SF Mono','JetBrains Mono',ui-monospace,monospace;
+    --ease:cubic-bezier(.16,1,.3,1);
+    --r:6px;
+  }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
   body{
     background:var(--canvas);
-    color:var(--ink-soft);
+    color:var(--text);
     font-family:var(--sans);
-    font-size:15px;
+    font-size:14px;
     line-height:1.6;
     -webkit-font-smoothing:antialiased;
   }
-  .ambient{position:fixed;inset:0;pointer-events:none;z-index:0;
-    background:radial-gradient(700px 500px at 18% 8%, rgba(180,150,110,.05), transparent 70%),
-               radial-gradient(600px 460px at 88% 92%, rgba(120,150,180,.04), transparent 70%);}
-  .wrap{position:relative;z-index:1;max-width:1040px;margin:0 auto;padding:72px 24px 96px}
-
-  header{margin-bottom:48px}
-  .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:14px}
-  .theme{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface);flex:none}
-  .theme button{
-    font-family:var(--sans);font-size:11px;letter-spacing:.05em;text-transform:uppercase;
-    background:transparent;color:var(--muted);border:0;padding:7px 11px;cursor:pointer;transition:color .18s ease,background .18s ease;
+  /* soft warm light spot, depth tanpa merusak tampilan flat */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:radial-gradient(60% 45% at 80% -5%,rgba(149,100,0,.03),transparent 70%);
   }
-  .theme button + button{border-left:1px solid var(--line)}
-  .theme button[aria-pressed="true"]{background:var(--ink);color:var(--canvas)}
-  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
-  h1{font-family:var(--serif);font-weight:400;font-size:clamp(34px,5vw,52px);line-height:1.08;letter-spacing:-.03em;color:var(--ink);margin:0 0 14px}
-  .lede{max-width:52ch;color:var(--muted);margin:0}
-  .badges{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 16px}
+  header,.wrap{position:relative;z-index:1}
 
-  .grid{display:grid;grid-template-columns:1.15fr .85fr;gap:20px;align-items:start}
-  @media (max-width:860px){.grid{grid-template-columns:1fr}}
-
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:28px}
-  .card h2{font-family:var(--sans);font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;margin:0 0 20px}
-
-  label{display:block;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
-  input[type=text],input[type=url],textarea,select{
-    width:100%;background:var(--canvas);color:var(--ink);border:1px solid var(--line);
-    border-radius:6px;padding:11px 12px;font-family:var(--mono);font-size:13px;line-height:1.5;
-    outline:none;transition:border-color .18s ease;
+  .label{
+    display:block;
+    font-size:12px;
+    font-weight:500;
+    color:var(--ink);
   }
-  input:focus,textarea:focus,select:focus{border-color:var(--muted)}
-  textarea{resize:vertical;min-height:84px}
-  select{font-family:var(--sans);font-size:13px}
-  .field{margin-bottom:20px}
-  .field:last-child{margin-bottom:0}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  .hint{font-size:12px;color:var(--muted);margin:7px 0 0}
 
-  .divider{height:1px;background:var(--line);margin:26px 0}
-
-  details.utm{border-top:1px solid var(--line);padding-top:18px;margin-top:4px}
-  details.utm summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;
-    font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
-  details.utm summary::-webkit-details-marker{display:none}
-  details.utm summary .sign{font-family:var(--mono);font-size:15px;color:var(--ink)}
-  details.utm[open] summary .sign::after{content:"−"}
-  details.utm:not([open]) summary .sign::after{content:"+"}
-  details.utm .body{padding-top:20px}
-
-  .swatches{display:flex;gap:8px;flex-wrap:wrap}
-  .sw{width:28px;height:28px;border-radius:6px;border:1px solid var(--line);cursor:pointer;padding:0;background-clip:padding-box}
-  .sw[aria-pressed="true"]{outline:1px solid var(--ink);outline-offset:2px}
-
-  .preview{display:flex;flex-direction:column;align-items:center;gap:20px}
-  .qrbox{width:100%;aspect-ratio:1;border:1px solid var(--line);border-radius:12px;background:#FFFFFF;
-    display:flex;align-items:center;justify-content:center;padding:22px;overflow:hidden}
-  .qrbox svg{width:100%;height:100%;display:block}
-  .empty{font-size:13px;color:#787774;text-align:center;max-width:24ch;font-family:var(--sans)}
-
-  .meta{width:100%;display:flex;flex-direction:column;gap:10px}
-  .metarow{display:flex;justify-content:space-between;gap:12px;font-size:12px;border-bottom:1px solid var(--line);padding-bottom:9px}
-  .metarow:last-child{border-bottom:0;padding-bottom:0}
-  .metarow span:first-child{color:var(--muted);letter-spacing:.03em;text-transform:uppercase;font-size:11px}
-  .metarow span:last-child{font-family:var(--mono);color:var(--ink)}
-
-  .tag{display:inline-block;border-radius:9999px;padding:3px 10px;font-size:10px;letter-spacing:.06em;
-    text-transform:uppercase;font-weight:500;background:var(--tag-bg);color:var(--tag-ink)}
-  .tag.warn{background:var(--warn-bg);color:var(--warn-ink)}
-  .tag.ok{background:var(--ok-bg);color:var(--ok-ink)}
-  .tag.err{background:var(--err-bg);color:var(--err-ink)}
-
-  .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
-  button.btn{
-    font-family:var(--sans);font-size:13px;font-weight:500;letter-spacing:.01em;
-    background:var(--ink);color:var(--canvas);border:1px solid var(--ink);
-    border-radius:6px;padding:11px 14px;cursor:pointer;transition:opacity .18s ease,transform .1s ease;
+  /* ---------- header ---------- */
+  header{
+    border-bottom:1px solid var(--line);
+    padding:20px 32px;
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:20px;
+    flex-wrap:wrap;
+    background:rgba(255,255,255,.86);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
   }
-  button.btn:hover{opacity:.84}
-  button.btn:active{transform:scale(.98)}
-  button.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
-  button.btn:disabled{opacity:.35;cursor:not-allowed}
-  .fullrow{grid-column:1 / -1}
+  .byline{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  h1{
+    margin:4px 0 0;
+    font-family:var(--serif);
+    font-size:34px;
+    font-weight:400;
+    line-height:1.1;
+    letter-spacing:-.03em;
+    color:var(--ink);
+  }
+  #meta{
+    font-family:var(--mono);
+    font-size:11.5px;
+    color:var(--muted);
+    text-align:right;
+    max-width:56ch;
+  }
+  #meta b{color:var(--ink);font-weight:500}
 
-  .finalurl{width:100%;font-family:var(--mono);font-size:11.5px;color:var(--muted);word-break:break-all;
-    background:var(--canvas);border:1px solid var(--line);border-radius:6px;padding:10px 12px;line-height:1.55}
+  /* ---------- layout ---------- */
+  .wrap{display:flex;align-items:flex-start;min-height:calc(100vh - 98px)}
+  aside{
+    width:320px;
+    flex:none;
+    border-right:1px solid var(--line);
+    padding:28px 24px;
+    position:sticky;
+    top:0;
+    max-height:100vh;
+    overflow-y:auto;
+    background:var(--surface);
+  }
+  main{flex:1;min-width:0;padding:28px 32px 96px}
 
-  .notes{margin-top:20px;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:28px}
-  .notes h2{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;margin:0 0 16px}
-  .notes ul{margin:0;padding-left:18px;color:var(--muted);font-size:13.5px}
-  .notes li{margin-bottom:8px}
-  .notes li:last-child{margin-bottom:0}
-  .notes kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line);border-radius:4px;background:var(--canvas);padding:1px 5px;color:var(--ink)}
+  .field{margin-bottom:22px}
+  .field > .label{margin-bottom:8px}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .hint.warn{
+    color:var(--yellow-tx);background:var(--yellow-bg);
+    padding:8px 10px;border-radius:var(--r)
+  }
 
-  footer{margin-top:40px;padding-top:24px;border-top:1px solid var(--line);
-    display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
-  footer p{margin:0;font-size:13px;color:var(--muted)}
-  footer .credit{font-family:var(--mono);font-size:11.5px;letter-spacing:.02em}
-  footer a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px;transition:border-color .18s ease}
-  footer a:hover{border-color:var(--ink)}
+  input[type=number],select{
+    width:100%;
+    background:var(--surface);
+    border:1px solid var(--line);
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:13px;
+    padding:0 11px;
+    height:38px;
+    border-radius:var(--r);
+    transition:border-color .2s var(--ease);
+  }
+  select{
+    appearance:none;-webkit-appearance:none;padding-right:32px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 256 256'%3E%3Cpath fill='%23787774' d='M213.66 101.66l-80 80a8 8 0 0 1-11.32 0l-80-80a8 8 0 0 1 11.32-11.32L128 164.69l74.34-74.35a8 8 0 0 1 11.32 11.32Z'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 11px center;
+  }
+  input::placeholder{color:#B5B4B0}
+  input[type=number]:focus,select:focus{outline:none;border-color:var(--ink)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
-  .reveal{opacity:0;transform:translateY(12px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+  .chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .chip{
+    font-family:var(--mono);
+    font-size:11px;
+    padding:3px 10px;
+    border:1px solid var(--line);
+    border-radius:9999px;
+    background:var(--surface);
+    color:var(--muted);
+    cursor:pointer;
+    transition:background-color .2s var(--ease),color .2s var(--ease),border-color .2s var(--ease);
+  }
+  .chip:hover{background:var(--surface-2);color:var(--ink)}
+  .chip[aria-pressed=true]{border-color:var(--ink);color:#fff;background:var(--ink)}
+
+  /* ---------- drop zone ---------- */
+  #drop{
+    border:1px dashed #D4D3CF;
+    border-radius:8px;
+    background:var(--surface-2);
+    padding:28px 14px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .2s var(--ease),background-color .2s var(--ease);
+  }
+  #drop:hover,#drop.over{border-color:var(--ink);background:#F2F1ED}
+  #drop svg{width:24px;height:24px;color:var(--ink);display:block;margin:0 auto 8px}
+  #drop strong{display:block;font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px}
+  #drop small{color:var(--muted);font-size:12px}
+  #preview{width:100%;margin-top:12px;border-radius:8px;display:none;background:#111}
+  #preview.capturing{pointer-events:none;outline:1px solid var(--ink);outline-offset:2px}
+
+  /* ---------- buttons ---------- */
+  button{font-family:inherit}
+  .btn{
+    width:100%;
+    min-height:40px;
+    padding:0 14px;
+    border:1px solid var(--line);
+    background:var(--surface-2);
+    color:var(--ink);
+    border-radius:var(--r);
+    font-size:13px;
+    font-weight:500;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    transition:background-color .2s var(--ease),transform .2s var(--ease),border-color .2s var(--ease);
+  }
+  .btn:hover:not(:disabled){background:#F0EFEB}
+  .btn:active:not(:disabled){transform:scale(.98)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+  .btn.primary:hover:not(:disabled){background:#333;border-color:#333}
+  .btn.ghost{background:var(--surface)}
+  .btn.ghost:hover:not(:disabled){background:var(--surface-2)}
+  .btn + .btn{margin-top:8px}
+  .btn .count{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .btn.primary .count{color:rgba(255,255,255,.7)}
+
+  /* ---------- progress ---------- */
+  #progress{display:none;margin-top:14px}
+  .bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+  .bar > i{display:block;height:100%;width:0;background:var(--ink);transition:width .1s linear}
+  #progressText{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:8px}
+  #stop{margin-top:10px}
+
+  hr{border:0;border-top:1px solid var(--line);margin:24px 0}
+
+  /* ---------- toolbar ---------- */
+  .toolbar{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    flex-wrap:wrap;
+    padding-bottom:16px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:24px;
+  }
+  .toolbar .spacer{flex:1}
+  #sheetLabel{font-family:var(--serif);font-size:22px;font-weight:400;letter-spacing:-.02em;color:var(--ink);line-height:1.2}
+  #sheetLabel small{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:0;margin-left:10px}
+  .link{
+    background:none;
+    border:0;
+    color:var(--muted);
+    font-size:12px;
+    cursor:pointer;
+    padding:4px 0;
+    border-bottom:1px solid transparent;
+    transition:color .2s var(--ease),border-color .2s var(--ease);
+  }
+  .link:hover:not(:disabled){color:var(--ink);border-bottom-color:var(--ink)}
+  .link:disabled{opacity:.35;cursor:not-allowed}
+  .link.danger:hover:not(:disabled){color:var(--red-tx);border-bottom-color:var(--red-tx)}
+
+  /* ---------- contact sheet ---------- */
+  #sheet{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(196px,1fr));
+    gap:16px;
+  }
+  .cell{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:8px;
+    overflow:hidden;
+    position:relative;
+    cursor:grab;
+    transition:box-shadow .2s var(--ease),border-color .2s var(--ease);
+  }
+  .cell:hover{box-shadow:0 2px 8px rgba(0,0,0,.04)}
+  .cell.sel{border-color:var(--ink)}
+  .cell.drag{opacity:.35}
+  .cell.drop-before{box-shadow:-3px 0 0 var(--ink)}
+  .cell.drop-after{box-shadow:3px 0 0 var(--ink)}
+  .thumb{display:block;width:100%;aspect-ratio:16/9;object-fit:contain;background:#111;border-bottom:1px solid var(--line)}
+  .cap{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    padding:8px 8px 8px 10px;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--muted);
+  }
+  .idx{color:var(--muted);margin-right:4px}
+  .cap .tc{flex:1;color:var(--ink);white-space:nowrap}
+  .cap .tc.off{color:var(--yellow-tx)}
+  .mini{
+    background:none;
+    border:0;
+    color:var(--muted);
+    cursor:pointer;
+    line-height:0;
+    padding:5px;
+    border-radius:4px;
+    transition:background-color .2s var(--ease),color .2s var(--ease);
+  }
+  .mini svg{width:13px;height:13px;display:block}
+  .mini:hover:not(:disabled){background:var(--surface-2);color:var(--ink)}
+  .mini.x:hover:not(:disabled){background:var(--red-bg);color:var(--red-tx)}
+  .mini:disabled{opacity:.25;cursor:not-allowed}
+  .pick{
+    position:absolute;
+    top:8px;left:8px;
+    width:17px;height:17px;
+    accent-color:var(--ink);
+    cursor:pointer;
+    z-index:2;
+  }
+
+  /* ---------- empty ---------- */
+  #empty{
+    border:1px dashed #D4D3CF;
+    border-radius:8px;
+    background:var(--surface-2);
+    padding:72px 24px;
+    text-align:center;
+    color:var(--muted);
+  }
+  #empty h2{margin:0;font-family:var(--serif);font-weight:400;font-size:26px;letter-spacing:-.02em;color:var(--ink)}
+  #empty p{margin:10px auto 0;max-width:48ch;font-size:13px}
+
+  /* ---------- lightbox ---------- */
+  #lb{
+    position:fixed;inset:0;
+    background:rgba(251,251,250,.96);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:14px;
+    padding:28px;
+    z-index:50;
+  }
+  #lb.on{display:flex}
+  #lb img{max-width:100%;max-height:calc(100vh - 120px);border-radius:8px;border:1px solid var(--line);background:#111}
+  #lbCap{font-family:var(--mono);font-size:12px;color:var(--muted)}
+
+  #toast{
+    position:fixed;
+    left:50%;bottom:28px;
+    transform:translate(-50%,12px);
+    background:var(--ink);
+    color:#fff;
+    padding:10px 16px;
+    border-radius:var(--r);
+    font-size:12.5px;
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .2s var(--ease),transform .2s var(--ease);
+    z-index:60;
+    max-width:80vw;
+  }
+  #toast.on{opacity:1;transform:translate(-50%,0)}
+
+  :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+  /* ---------- scroll entry ---------- */
+  .reveal{opacity:0;transform:translateY(12px);transition:opacity .6s var(--ease),transform .6s var(--ease);transition-delay:calc(var(--index,0) * 80ms)}
   .reveal.in{opacity:1;transform:none}
-  @media (prefers-reduced-motion:reduce){.reveal{transition:none}}
+
+  @media (max-width:860px){
+    header{padding:16px 18px}
+    h1{font-size:28px}
+    .wrap{flex-direction:column}
+    aside{width:100%;position:static;max-height:none;border-right:0;border-bottom:1px solid var(--line);padding:22px 18px}
+    main{padding:22px 18px 72px}
+    #meta{text-align:left}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important}
+    .reveal{opacity:1;transform:none}
+  }
 </style>
 </head>
 <body>
-<div class="ambient"></div>
-<div class="wrap">
 
-  <header class="reveal">
-    <div class="topbar">
-      <span></span>
-      <div class="theme" id="theme" role="group" aria-label="Tema tampilan">
-        <button type="button" data-mode="light">Light</button>
-        <button type="button" data-mode="dark">Dark</button>
-        <button type="button" data-mode="auto">Auto</button>
+<header>
+  <div>
+    <div class="byline">Dibuat oleh Farhan, Content Creator</div>
+    <h1>Frame Extractor</h1>
+  </div>
+  <div id="meta">Belum ada video dimuat.</div>
+</header>
+
+<div class="wrap">
+  <aside class="reveal">
+    <div class="field">
+      <label class="label">1. Video</label>
+      <div id="drop" tabindex="0" role="button">
+        <svg viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224 144v64a8 8 0 0 1-8 8H40a8 8 0 0 1-8-8v-64a8 8 0 0 1 16 0v56h160v-56a8 8 0 0 1 16 0Zm-101.66-5.66a8 8 0 0 0 11.32 0l40-40a8 8 0 0 0-11.32-11.32L136 108.69V24a8 8 0 0 0-16 0v84.69l-26.34-26.35a8 8 0 0 0-11.32 11.32Z"/></svg>
+        <strong>Taruh video di sini</strong>
+        <small>atau klik untuk pilih file</small>
+      </div>
+      <input type="file" id="file" accept="video/*" hidden>
+      <video id="preview" controls muted playsinline></video>
+      <div class="hint">MP4 (H.264) dan WebM paling aman. File dari kamera iPhone sebaiknya diekspor dulu ke H.264.</div>
+    </div>
+
+    <hr>
+
+    <div class="field">
+      <label class="label" for="interval">2. Interval (detik)</label>
+      <input type="number" id="interval" value="0.5" min="0.02" step="0.05">
+      <div class="chips" id="presets">
+        <button class="chip" data-v="0.25" aria-pressed="false">0.25s</button>
+        <button class="chip" data-v="0.5" aria-pressed="true">0.5s</button>
+        <button class="chip" data-v="1" aria-pressed="false">1s</button>
+        <button class="chip" data-v="2" aria-pressed="false">2s</button>
       </div>
     </div>
-    <h1>Hans QR Generator</h1>
-    <p class="badges"><span class="tag ok">100% gratis</span><span class="tag">Tanpa iklan</span><span class="tag">Tanpa daftar akun</span></p>
-    <p class="lede">QR untuk flyer, standee, dan materi digital. Isi UTM kalau traffic dari QR ini perlu dipisah di GA4 — parameternya ikut masuk ke dalam kode, bukan ditambahkan setelahnya.</p>
-  </header>
 
-  <div class="grid">
-
-    <section class="card reveal">
-      <h2>Input</h2>
-
-      <div class="field">
-        <label for="url">Link</label>
-        <textarea id="url" placeholder="https://contoh.co.id/halaman" spellcheck="false"></textarea>
-        <p class="hint">Bisa juga wa.me/62… atau mailto:.</p>
+    <div class="field">
+      <label class="label" for="mode">Metode</label>
+      <select id="mode">
+        <option value="seek">Seek: presisi</option>
+        <option value="play">Playback: cepat</option>
+      </select>
+      <div class="row2" id="rateRow" style="margin-top:8px;display:none">
+        <select id="rate">
+          <option value="2">2x</option>
+          <option value="4">4x</option>
+          <option value="8">8x</option>
+          <option value="16" selected>16x</option>
+        </select>
+        <select id="tol">
+          <option value="0">Ambil semua</option>
+          <option value="0.15" selected>Buang meleset &gt;150ms</option>
+          <option value="0.05">Buang meleset &gt;50ms</option>
+        </select>
       </div>
+      <div class="hint" id="modeHint">Video di-seek satu per satu ke titik target. Paling akurat, lebih lambat pada file panjang.</div>
+    </div>
 
-      <div class="field row">
-        <div>
-          <label for="ec">Koreksi error</label>
-          <select id="ec">
-            <option value="L">L — 7%</option>
-            <option value="M" selected>M — 15%</option>
-            <option value="Q">Q — 25%</option>
-            <option value="H">H — 30%</option>
-          </select>
-        </div>
-        <div>
-          <label for="size">Ukuran PNG</label>
-          <select id="size">
-            <option value="512">512 px</option>
-            <option value="1024" selected>1024 px</option>
-            <option value="2048">2048 px</option>
-          </select>
-        </div>
+    <div class="field">
+      <label class="label">Rentang waktu (opsional)</label>
+      <div class="row2">
+        <input type="number" id="tStart" placeholder="mulai" min="0" step="0.1">
+        <input type="number" id="tEnd" placeholder="selesai" min="0" step="0.1">
       </div>
+      <div class="hint">Kosongkan untuk memproses seluruh durasi.</div>
+    </div>
 
-      <div class="field">
-        <label>Warna modul</label>
-        <div class="swatches" id="swatches"></div>
-        <p class="hint">Latar selalu putih. Warna terang bikin scanner gagal baca.</p>
+    <div class="field">
+      <label class="label" for="fmt">Format dan lebar</label>
+      <div class="row2">
+        <select id="fmt">
+          <option value="image/jpeg">JPG</option>
+          <option value="image/png">PNG</option>
+        </select>
+        <select id="maxw">
+          <option value="0">Asli</option>
+          <option value="1920">1920px</option>
+          <option value="1080" selected>1080px</option>
+          <option value="720">720px</option>
+        </select>
       </div>
+    </div>
 
-      <details class="utm">
-        <summary>Parameter UTM <span class="sign"></span></summary>
-        <div class="body">
-          <div class="field row">
-            <div><label for="u_source">Source</label><input type="text" id="u_source" placeholder="flyer"></div>
-            <div><label for="u_medium">Medium</label><input type="text" id="u_medium" placeholder="qr"></div>
-          </div>
-          <div class="field row">
-            <div><label for="u_campaign">Campaign</label><input type="text" id="u_campaign" placeholder="okt-promo"></div>
-            <div><label for="u_content">Content</label><input type="text" id="u_content" placeholder="standee-lobby"></div>
-          </div>
-          <p class="hint">Hanya berlaku untuk URL http/https.</p>
-        </div>
-      </details>
+    <button class="btn primary" id="run" disabled>Ekstrak frame</button>
 
-      <div class="divider"></div>
-      <label>Yang tertanam di QR</label>
-      <div class="finalurl" id="finalurl">—</div>
-    </section>
+    <div id="progress">
+      <div class="bar"><i id="barFill"></i></div>
+      <div id="progressText">0 / 0</div>
+      <button class="btn ghost" id="stop">Hentikan</button>
+    </div>
 
-    <section class="card reveal">
-      <h2>Hasil</h2>
-      <div class="preview">
-        <div class="qrbox" id="qrbox"><p class="empty">Isi link dulu.</p></div>
+    <hr>
 
-        <div class="meta">
-          <div class="metarow"><span>Status</span><span id="status"><span class="tag">Menunggu input</span></span></div>
-          <div class="metarow"><span>Versi &amp; modul</span><span id="m-version">—</span></div>
-          <div class="metarow"><span>Panjang link</span><span id="m-len">—</span></div>
-        </div>
+    <div class="field" style="margin-bottom:0">
+      <label class="label">3. Ekspor</label>
+      <button class="btn" id="zipAll" disabled>Download ZIP <span class="count" id="zipAllN"></span></button>
+      <button class="btn ghost" id="zipSel" disabled>Download terpilih <span class="count" id="zipSelN"></span></button>
+      <div class="hint">Nama file mengikuti urutan di kanan, jadi susunanmu ikut terbawa ke dalam ZIP.</div>
+    </div>
+  </aside>
 
-        <div class="actions">
-          <button class="btn" id="dl-png" disabled>Unduh PNG</button>
-          <button class="btn ghost" id="dl-svg" disabled>Unduh SVG</button>
-          <button class="btn fullrow" id="copy-img" disabled>Salin gambar</button>
-          <button class="btn ghost fullrow" id="copy" disabled>Salin link</button>
-        </div>
-      </div>
-    </section>
-  </div>
+  <main>
+    <div class="toolbar reveal" style="--index:1">
+      <span id="sheetLabel">Contact sheet</span>
+      <span class="spacer"></span>
+      <button class="link" id="selAll" disabled>Pilih semua</button>
+      <button class="link" id="selNone" disabled>Batal pilih</button>
+      <button class="link" id="selInv" disabled>Balik pilihan</button>
+      <button class="link" id="sortTime" disabled>Urutkan ulang by timecode</button>
+      <button class="link danger" id="delSel" disabled>Hapus terpilih</button>
+      <button class="link danger" id="delAll" disabled>Kosongkan</button>
+    </div>
 
-  <section class="notes reveal">
-    <h2>Tips</h2>
-    <ul>
-      <li>Mau dicetak, ambil SVG. PNG buat feed dan slide.</li>
-      <li>Bingkai putihnya jangan dipotong. Kamera mencari kodenya dari situ.</li>
-      <li>Link pendek, kotaknya lebih besar, lebih gampang kebaca. URL panjang sebaiknya dipendekkan dulu.</li>
-      <li>Patokan ukuran: 2 cm cukup untuk jarak sejengkal. Poster atau spanduk, ambil sepersepuluh jarak orang berdiri.</li>
-      <li>Bakal kena lipat atau gesek? Naikkan koreksi error ke H.</li>
-      <li>Terakhir, pindai sendiri dari jarak yang nanti dipakai.</li>
-    </ul>
-  </section>
-  <footer class="reveal">
-    <p>Dibuat dengan sepenuh hati di Jakarta.</p>
-    <p class="credit">Developer — <a href="https://instagram.com/hanlee.mov" target="_blank" rel="noopener noreferrer">@hanlee.mov</a></p>
-  </footer>
+    <div id="empty" class="reveal" style="--index:2">
+      <h2>Belum ada frame</h2>
+      <p>Muat video, atur intervalnya, lalu jalankan ekstraksi. Frame bisa digeser untuk diurutkan ulang, dihapus satu-satu, atau dipilih sebagian sebelum diekspor.</p>
+    </div>
+
+    <div id="sheet"></div>
+  </main>
 </div>
+
+<div id="lb" role="dialog" aria-modal="true">
+  <img id="lbImg" alt="">
+  <div id="lbCap"></div>
+</div>
+
+<div id="toast"></div>
 
 <script>
 (function(){
-  const $ = id => document.getElementById(id);
-  const urlEl=$('url'), ecEl=$('ec'), sizeEl=$('size'), box=$('qrbox'),
-        statusEl=$('status'), mVer=$('m-version'), mLen=$('m-len'),
-        finalEl=$('finalurl'), dlPng=$('dl-png'), dlSvg=$('dl-svg'),
-        copyBtn=$('copy'), copyImg=$('copy-img');
-  const utm = {source:$('u_source'), medium:$('u_medium'), campaign:$('u_campaign'), content:$('u_content')};
+"use strict";
 
-  const COLORS=['#111111','#1F6C9F','#346538','#9F2F2D','#956400'];
-  let color=COLORS[0];
-  const swWrap=$('swatches');
-  COLORS.forEach((c,i)=>{
-    const b=document.createElement('button');
-    b.className='sw'; b.type='button'; b.style.background=c;
-    b.setAttribute('aria-pressed', i===0?'true':'false');
-    b.setAttribute('aria-label','Warna '+c);
-    b.addEventListener('click',()=>{
-      color=c;
-      [...swWrap.children].forEach(x=>x.setAttribute('aria-pressed','false'));
-      b.setAttribute('aria-pressed','true');
-      render();
+/* ============ scroll entry ============ */
+(function(){
+  var els = document.querySelectorAll(".reveal");
+  if(!("IntersectionObserver" in window)){
+    [].forEach.call(els, function(el){ el.classList.add("in"); });
+    return;
+  }
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if(en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target); }
     });
-    swWrap.appendChild(b);
+  }, { threshold: 0.05 });
+  [].forEach.call(els, function(el){ io.observe(el); });
+})();
+
+/* ============ icons (Phosphor-style, filled) ============ */
+var ICON = {
+  left:  '<svg viewBox="0 0 256 256" fill="currentColor"><path d="M165.66 202.34a8 8 0 0 1-11.32 11.32l-80-80a8 8 0 0 1 0-11.32l80-80a8 8 0 0 1 11.32 11.32L91.31 128Z"/></svg>',
+  right: '<svg viewBox="0 0 256 256" fill="currentColor"><path d="M181.66 133.66l-80 80a8 8 0 0 1-11.32-11.32L164.69 128 90.34 53.66a8 8 0 0 1 11.32-11.32l80 80a8 8 0 0 1 0 11.32Z"/></svg>',
+  dl:    '<svg viewBox="0 0 256 256" fill="currentColor"><path d="M224 144v64a8 8 0 0 1-8 8H40a8 8 0 0 1-8-8v-64a8 8 0 0 1 16 0v56h160v-56a8 8 0 0 1 16 0Zm-101.66 5.66a8 8 0 0 0 11.32 0l40-40a8 8 0 0 0-11.32-11.32L136 124.69V32a8 8 0 0 0-16 0v92.69l-26.34-26.35a8 8 0 0 0-11.32 11.32Z"/></svg>',
+  del:   '<svg viewBox="0 0 256 256" fill="currentColor"><path d="M205.66 194.34a8 8 0 0 1-11.32 11.32L128 139.31l-66.34 66.35a8 8 0 0 1-11.32-11.32L116.69 128 50.34 61.66a8 8 0 0 1 11.32-11.32L128 116.69l66.34-66.35a8 8 0 0 1 11.32 11.32L139.31 128Z"/></svg>'
+};
+
+/* ============ state ============ */
+var frames = [];      // {id, t, target, drift, blob, url, sel}
+var video  = null;    // off-DOM decoder, dipakai mode seek
+var fileName = "";
+var busy = false, abort = false;
+var seq = 0;
+
+var $ = function(id){ return document.getElementById(id); };
+
+/* ============ helpers ============ */
+function toast(msg, ms){
+  var t = $("toast");
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function(){ t.classList.remove("on"); }, ms || 3200);
+}
+function tc(sec){
+  var ms = Math.round(sec * 1000);
+  var h = Math.floor(ms/3600000), m = Math.floor(ms%3600000/60000);
+  var s = Math.floor(ms%60000/1000), f = ms%1000;
+  var p = function(n,l){ return String(n).padStart(l,"0"); };
+  return p(h,2)+":"+p(m,2)+":"+p(s,2)+"."+p(f,3);
+}
+function tcFile(sec){ return tc(sec).replace(/[:.]/g,"-"); }
+function bytes(n){
+  if(n < 1024) return n+" B";
+  if(n < 1048576) return (n/1024).toFixed(0)+" KB";
+  return (n/1048576).toFixed(1)+" MB";
+}
+function baseName(){
+  return (fileName.replace(/\.[^.]+$/,"") || "frames").replace(/[^\w\-]+/g,"_").slice(0,40);
+}
+function ext(){ return $("fmt").value === "image/png" ? ".png" : ".jpg"; }
+
+/* ============ load video ============ */
+var drop = $("drop"), fileInput = $("file"), preview = $("preview");
+
+drop.addEventListener("click", function(){ fileInput.click(); });
+drop.addEventListener("keydown", function(e){
+  if(e.key === "Enter" || e.key === " "){ e.preventDefault(); fileInput.click(); }
+});
+["dragenter","dragover"].forEach(function(ev){
+  drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add("over"); });
+});
+["dragleave","drop"].forEach(function(ev){
+  drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove("over"); });
+});
+drop.addEventListener("drop", function(e){
+  if(e.dataTransfer.files && e.dataTransfer.files[0]) load(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener("change", function(){
+  if(fileInput.files[0]) load(fileInput.files[0]);
+});
+
+function load(f){
+  if(!/^video\//.test(f.type) && !/\.(mp4|webm|mov|m4v|ogv)$/i.test(f.name)){
+    toast("File itu bukan video."); return;
+  }
+  if(video) URL.revokeObjectURL(video.src);
+  fileName = f.name;
+  var url = URL.createObjectURL(f);
+
+  video = document.createElement("video");
+  video.preload = "auto";
+  video.muted = true;
+  video.playsInline = true;
+  video.src = url;
+
+  preview.src = url;
+  preview.style.display = "block";
+  preview.playbackRate = 1;
+
+  $("meta").innerHTML = "Memuat metadata\u2026";
+
+  video.addEventListener("error", function(){
+    $("meta").textContent = "Browser tidak bisa memutar file ini. Ekspor ulang ke MP4 H.264.";
+    $("run").disabled = true;
   });
 
-  let state={modules:null,count:0,version:0,data:''};
-
-  function buildData(){
-    const raw=urlEl.value.trim();
-    if(!raw) return '';
-    const isUrl=/^https?:\/\//i.test(raw);
-    const params=Object.entries(utm).filter(([,el])=>el.value.trim());
-    if(!isUrl || !params.length) return raw;
-    try{
-      const u=new URL(raw);
-      params.forEach(([k,el])=>u.searchParams.set('utm_'+k, el.value.trim()));
-      return u.toString();
-    }catch(e){ return raw; }
-  }
-
-  function tag(text,cls){ return '<span class="tag'+(cls?' '+cls:'')+'">'+text+'</span>'; }
-
-  function svgMarkup(px){
-    if(!state.modules) return '';
-    const n=state.count, q=4, total=n+q*2;
-    let path='';
-    for(let r=0;r<n;r++){
-      for(let c=0;c<n;c++){
-        if(state.modules(r,c)) path+='M'+(c+q)+' '+(r+q)+'h1v1h-1z';
-      }
-    }
-    const dim = px ? ' width="'+px+'" height="'+px+'"' : '';
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+total+' '+total+'"'+dim+' shape-rendering="crispEdges" role="img" aria-label="Kode QR"><rect width="'+total+'" height="'+total+'" fill="#FFFFFF"/><path d="'+path+'" fill="'+color+'"/></svg>';
-  }
-
-  function render(){
-    const data=buildData();
-    state.data=data;
-    finalEl.textContent = data || '—';
-    if(!data){
-      state.modules=null;
-      box.innerHTML='<p class="empty">Isi link dulu.</p>';
-      statusEl.innerHTML=tag('Belum ada link');
-      mVer.textContent='—'; mLen.textContent='—';
-      dlPng.disabled=dlSvg.disabled=copyBtn.disabled=copyImg.disabled=true;
-      return;
-    }
-    try{
-      const qr=qrcode(0, ecEl.value);
-      qr.addData(data);
-      qr.make();
-      state.count=qr.getModuleCount();
-      state.version=(state.count-17)/4;
-      state.modules=(r,c)=>qr.isDark(r,c);
-      box.innerHTML=svgMarkup(null);
-      mVer.textContent='v'+state.version+' · '+state.count+'×'+state.count;
-      mLen.textContent=data.length+' karakter';
-      const heavy=state.version>=20;
-      statusEl.innerHTML = heavy ? tag('Modul padat','warn') : tag('Siap','ok');
-      dlPng.disabled=dlSvg.disabled=copyBtn.disabled=copyImg.disabled=false;
-    }catch(err){
-      state.modules=null;
-      box.innerHTML='<p class="empty">Link terlalu panjang. Pendekkan link, atau turunkan koreksi error.</p>';
-      statusEl.innerHTML=tag('Gagal','err');
-      mVer.textContent='—'; mLen.textContent=data.length+' karakter';
-      dlPng.disabled=dlSvg.disabled=copyImg.disabled=true; copyBtn.disabled=false;
-    }
-  }
-
-  function fileBase(){
-    let base='qr';
-    try{ base='qr-'+new URL(state.data).hostname.replace(/^www\./,'').replace(/[^a-z0-9]+/gi,'-'); }catch(e){}
-    return base;
-  }
-  function download(blob,name){
-    const u=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=u; a.download=name; a.rel='noopener';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(u),2000);
-  }
-
-  dlSvg.addEventListener('click',()=>{
-    if(!state.modules) return;
-    download(new Blob([svgMarkup(null)],{type:'image/svg+xml'}), fileBase()+'.svg');
-  });
-
-  function pngBlob(){
-    return new Promise((resolve,reject)=>{
-      if(!state.modules) return reject(new Error('no qr'));
-      const px=parseInt(sizeEl.value,10);
-      const total=state.count+8;
-      const scale=Math.max(1,Math.floor(px/total));
-      const dim=total*scale;
-      const cv=document.createElement('canvas');
-      cv.width=cv.height=dim;
-      const ctx=cv.getContext('2d');
-      ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,dim,dim);
-      ctx.fillStyle=color;
-      for(let r=0;r<state.count;r++){
-        for(let c=0;c<state.count;c++){
-          if(state.modules(r,c)) ctx.fillRect((c+4)*scale,(r+4)*scale,scale,scale);
-        }
-      }
-      cv.toBlob(b=>b?resolve({blob:b,dim:dim}):reject(new Error('encode gagal')),'image/png');
+  video.addEventListener("loadedmetadata", function(){
+    fixDuration(video).then(function(dur){
+      video._dur = dur;
+      $("tEnd").placeholder = "selesai (" + dur.toFixed(1) + ")";
+      $("meta").innerHTML =
+        "<b>" + fileName + "</b> | " + tc(dur) +
+        " | " + video.videoWidth + "\u00d7" + video.videoHeight +
+        " | " + bytes(f.size);
+      $("run").disabled = false;
+      estimate();
     });
-  }
-
-  dlPng.addEventListener('click',async()=>{
-    try{ const {blob,dim}=await pngBlob(); download(blob, fileBase()+'-'+dim+'px.png'); }catch(e){}
   });
+}
 
-  function flash(btn,msg,ms){
-    const old=btn.dataset.label || btn.textContent;
-    btn.dataset.label=old;
-    btn.textContent=msg;
-    setTimeout(()=>{ btn.textContent=btn.dataset.label; },ms||1400);
+/* WebM hasil MediaRecorder sering melaporkan durasi Infinity sampai di-seek. */
+function fixDuration(v){
+  return new Promise(function(res){
+    if(isFinite(v.duration) && v.duration > 0) return res(v.duration);
+    var done = false;
+    var onSeek = function(){
+      if(done) return;
+      done = true;
+      var d = v.currentTime;
+      v.removeEventListener("timeupdate", onSeek);
+      v.currentTime = 0;
+      res(d > 0 ? d : 0);
+    };
+    v.addEventListener("timeupdate", onSeek);
+    v.currentTime = 1e6;
+    setTimeout(function(){ if(!done){ done = true; res(isFinite(v.duration) ? v.duration : 0); } }, 4000);
+  });
+}
+
+/* ============ controls ============ */
+$("presets").addEventListener("click", function(e){
+  var b = e.target.closest(".chip");
+  if(!b) return;
+  $("interval").value = b.dataset.v;
+  syncChips(); estimate();
+});
+function syncChips(){
+  var v = parseFloat($("interval").value);
+  [].forEach.call($("presets").children, function(c){
+    c.setAttribute("aria-pressed", String(parseFloat(c.dataset.v) === v));
+  });
+}
+["interval","tStart","tEnd"].forEach(function(id){
+  $(id).addEventListener("input", function(){ syncChips(); estimate(); });
+});
+
+$("mode").addEventListener("change", function(){
+  var play = $("mode").value === "play";
+  $("rateRow").style.display = play ? "grid" : "none";
+  $("modeHint").className = "hint" + (play ? " warn" : "");
+  $("modeHint").textContent = play
+    ? "Video diputar cepat dan frame ditangkap saat lewat. Jauh lebih cepat, tapi frame bisa meleset dari titik target kalau decoder tidak mengejar. Timecode yang dicatat selalu waktu aktual."
+    : "Video di-seek satu per satu ke titik target. Paling akurat, lebih lambat pada file panjang.";
+  applyRate();
+  estimate();
+});
+$("rate").addEventListener("change", function(){ applyRate(); estimate(); });
+function applyRate(){
+  var r = $("mode").value === "play" ? parseFloat($("rate").value) : 1;
+  try { preview.playbackRate = r; } catch(e){}
+}
+
+function range(){
+  var dur = video && video._dur ? video._dur : 0;
+  var a = parseFloat($("tStart").value); if(!isFinite(a) || a < 0) a = 0;
+  var b = parseFloat($("tEnd").value);   if(!isFinite(b) || b <= 0 || b > dur) b = dur;
+  if(b <= a) b = dur;
+  return [a, b];
+}
+function targets(){
+  var step = parseFloat($("interval").value);
+  if(!isFinite(step) || step <= 0) return [];
+  var r = range(), out = [];
+  for(var t = r[0]; t <= r[1] + 1e-6; t += step) out.push(Math.min(t, Math.max(0, r[1] - 0.001)));
+  return out;
+}
+function estimate(){
+  if(!video || !video._dur) return;
+  var n = targets().length, r = range();
+  var eta = $("mode").value === "play"
+    ? " | \u2248" + Math.ceil((r[1] - r[0]) / parseFloat($("rate").value)) + "s"
+    : "";
+  $("run").textContent = "Ekstrak frame (\u2248" + n + ")" + eta;
+}
+
+/* ============ capture plumbing ============ */
+var outW = 0, outH = 0, inFlight = 0, pending = [];
+
+function setSize(v){
+  var maxw = parseInt($("maxw").value, 10);
+  outW = v.videoWidth; outH = v.videoHeight;
+  if(maxw && outW > maxw){ outH = Math.round(outH * maxw / outW); outW = maxw; }
+}
+
+/* Canvas baru per frame: drawImage sinkron, toBlob async.
+   Berbagi satu canvas akan menimpa piksel sebelum encoding selesai. */
+function grab(v, target){
+  var c = document.createElement("canvas");
+  c.width = outW; c.height = outH;
+  c.getContext("2d").drawImage(v, 0, 0, outW, outH);
+
+  var actual = v.currentTime;
+  var fmt = $("fmt").value;
+  inFlight++;
+  pending.push(new Promise(function(res){
+    c.toBlob(function(b){
+      inFlight--;
+      if(b){
+        frames.push({
+          id: ++seq,
+          t: actual,
+          target: target,
+          drift: Math.abs(actual - target),
+          blob: b,
+          url: URL.createObjectURL(b),
+          sel: false
+        });
+      }
+      res();
+    }, fmt, 0.9);
+  }));
+}
+
+function progress(done, total){
+  $("barFill").style.width = (done/total*100) + "%";
+  $("progressText").textContent = done + " / " + total;
+}
+
+/* ============ mode: seek ============ */
+function seek(v, t){
+  return new Promise(function(res){
+    var done = false;
+    var on = function(){ if(done) return; done = true; v.removeEventListener("seeked", on); res(); };
+    v.addEventListener("seeked", on);
+    v.currentTime = t;
+    setTimeout(on, 3000);
+  });
+}
+
+async function runSeek(list){
+  setSize(video);
+  for(var i = 0; i < list.length; i++){
+    if(abort) break;
+    await seek(video, list[i]);
+    grab(video, list[i]);
+    progress(i+1, list.length);
+    if(inFlight > 24) await Promise.all(pending.slice(-inFlight));
+    if(i % 8 === 0) render();
   }
+}
 
-  copyImg.addEventListener('click',async()=>{
-    try{
-      const {blob}=await pngBlob();
-      if(!navigator.clipboard || !window.ClipboardItem) throw new Error('unsupported');
-      await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
-      flash(copyImg,'Tersalin');
-    }catch(e){
-      flash(copyImg,'Browser ini tidak izinkan — pakai Unduh PNG',2400);
+/* ============ mode: playback ============ */
+async function runPlay(list){
+  var v = preview;                    // elemen yang tampil, supaya rendering tidak di-throttle browser
+  setSize(v);
+  v.classList.add("capturing");
+  v.muted = true;
+  v.playbackRate = parseFloat($("rate").value);   // Chrome membatasi di 16
+
+  await seek(v, list[0]);
+
+  var idx = 0;
+  var rvfc = typeof v.requestVideoFrameCallback === "function";
+
+  await new Promise(function(resolve){
+    function step(){
+      if(abort){ finish(); return; }
+      var now = v.currentTime;
+
+      /* Ambil frame ini untuk setiap target yang sudah terlewati. Kalau decoder
+         melompat jauh, beberapa target berbagi frame yang sama; opsi toleransi
+         yang memutuskan apakah duplikat itu dibuang. */
+      while(idx < list.length && list[idx] <= now + 1e-4){
+        grab(v, list[idx]);
+        idx++;
+        progress(idx, list.length);
+      }
+
+      if(idx >= list.length || v.ended){ finish(); return; }
+
+      if(inFlight > 32){                    // rem, supaya memori tidak meledak
+        v.pause();
+        Promise.all(pending.slice(-inFlight)).then(function(){
+          if(abort){ finish(); return; }
+          v.play().then(queue, finish);
+        });
+        return;
+      }
+      queue();
     }
-  });
-
-  copyBtn.addEventListener('click',async()=>{
-    try{
-      await navigator.clipboard.writeText(state.data);
-      flash(copyBtn,'Tersalin');
-    }catch(e){
-      flash(copyBtn,'Salin manual dari kotak di kiri',2000);
+    function queue(){
+      if(rvfc) v.requestVideoFrameCallback(step);
+      else setTimeout(step, 16);
     }
+    function finish(){
+      try { v.pause(); } catch(e){}
+      v.playbackRate = 1;
+      v.classList.remove("capturing");
+      resolve();
+    }
+    v.play().then(queue, finish);
   });
+}
 
-  [urlEl,ecEl,sizeEl,...Object.values(utm)].forEach(el=>{
-    el.addEventListener('input',render);
-    el.addEventListener('change',render);
-  });
+/* ============ run ============ */
+$("run").addEventListener("click", async function(){
+  if(busy || !video) return;
+  var list = targets();
+  if(!list.length){ toast("Interval harus lebih besar dari 0."); return; }
 
-  const io=new IntersectionObserver(es=>{
-    es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
-  },{threshold:.08});
-  document.querySelectorAll('.reveal').forEach((el,i)=>{ el.style.transitionDelay=(i*70)+'ms'; io.observe(el); });
+  var isPlay = $("mode").value === "play";
+  if(list.length > 600 && !confirm(list.length + " frame akan dibuat. Jumlah sebanyak ini bisa memberatkan browser. Lanjutkan?")) return;
 
-  const themeWrap=$('theme');
-  function applyTheme(mode){
-    const root=document.documentElement;
-    if(mode==='auto') root.removeAttribute('data-theme');
-    else root.setAttribute('data-theme',mode);
-    [...themeWrap.children].forEach(b=>b.setAttribute('aria-pressed', b.dataset.mode===mode?'true':'false'));
-    try{ localStorage.setItem('qr-theme',mode); }catch(e){}
+  busy = true; abort = false;
+  pending = []; inFlight = 0;
+  var before = frames.length;
+
+  $("run").disabled = true;
+  $("progress").style.display = "block";
+  progress(0, list.length);
+
+  try {
+    if(isPlay) await runPlay(list);
+    else       await runSeek(list);
+    await Promise.all(pending);
+  } catch(err){
+    toast("Ekstraksi berhenti: " + err.message);
   }
-  themeWrap.addEventListener('click',e=>{
-    const b=e.target.closest('button'); if(b) applyTheme(b.dataset.mode);
-  });
-  let saved='auto';
-  try{ saved=localStorage.getItem('qr-theme')||'auto'; }catch(e){}
-  applyTheme(saved);
 
+  /* Buang frame yang meleset di luar toleransi (mode playback saja). */
+  var dropped = 0;
+  if(isPlay){
+    var tol = parseFloat($("tol").value);
+    if(tol > 0){
+      var kept = [];
+      frames.forEach(function(f, i){
+        if(i >= before && f.drift > tol){ URL.revokeObjectURL(f.url); dropped++; }
+        else kept.push(f);
+      });
+      frames = kept;
+    }
+  }
+
+  var added = frames.length - before;
+  var maxDrift = 0;
+  frames.slice(before).forEach(function(f){ if(f.drift > maxDrift) maxDrift = f.drift; });
+
+  frames.sort(function(a,b){ return a.t - b.t; });
+
+  busy = false;
+  $("run").disabled = false;
+  $("progress").style.display = "none";
+  $("barFill").style.width = "0";
   render();
+
+  var msg = added + " frame ditambahkan";
+  if(isPlay){
+    msg += " | deviasi terbesar " + Math.round(maxDrift*1000) + "ms";
+    if(dropped) msg += " | " + dropped + " dibuang karena meleset";
+  }
+  if(abort) msg += " (dihentikan)";
+  toast(msg + ".", 5000);
+});
+
+$("stop").addEventListener("click", function(){ abort = true; });
+
+/* ============ render ============ */
+var sheet = $("sheet");
+
+function render(){
+  sheet.innerHTML = "";
+  var has = frames.length > 0;
+  $("empty").style.display = has ? "none" : "block";
+
+  var selCount = frames.filter(function(f){ return f.sel; }).length;
+  var totalBytes = frames.reduce(function(a,f){ return a + f.blob.size; }, 0);
+
+  $("sheetLabel").innerHTML = has
+    ? 'Contact sheet<small>' + frames.length + ' frame | ' + bytes(totalBytes) + '</small>'
+    : "Contact sheet";
+
+  ["selAll","selNone","selInv","sortTime","delSel","delAll","zipAll","zipSel"].forEach(function(id){
+    $(id).disabled = !has;
+  });
+  $("delSel").disabled = $("zipSel").disabled = selCount === 0;
+  $("zipAllN").textContent = has ? "(" + frames.length + ")" : "";
+  $("zipSelN").textContent = selCount ? "(" + selCount + ")" : "";
+
+  frames.forEach(function(f, i){
+    var cell = document.createElement("div");
+    cell.className = "cell" + (f.sel ? " sel" : "");
+    cell.draggable = true;
+    cell.dataset.i = i;
+
+    var off = f.drift > 0.05;
+    cell.innerHTML =
+      '<input type="checkbox" class="pick"' + (f.sel ? " checked" : "") + ' title="Pilih frame">' +
+      '<img class="thumb" src="' + f.url + '" alt="Frame ' + (i+1) + '" loading="lazy">' +
+      '<div class="cap">' +
+        '<span class="idx">' + String(i+1).padStart(3,"0") + '</span>' +
+        '<span class="tc' + (off ? " off" : "") + '" title="' +
+          (off ? "Meleset " + Math.round(f.drift*1000) + "ms dari target " + tc(f.target) : "Tepat di target") +
+        '">' + tc(f.t) + '</span>' +
+        '<button class="mini" data-a="left" title="Geser kiri"' + (i===0?" disabled":"") + '>' + ICON.left + '</button>' +
+        '<button class="mini" data-a="right" title="Geser kanan"' + (i===frames.length-1?" disabled":"") + '>' + ICON.right + '</button>' +
+        '<button class="mini" data-a="dl" title="Download frame ini">' + ICON.dl + '</button>' +
+        '<button class="mini x" data-a="del" title="Hapus frame">' + ICON.del + '</button>' +
+      '</div>';
+
+    cell.querySelector(".pick").addEventListener("change", function(e){
+      f.sel = e.target.checked; render();
+    });
+    cell.querySelector(".thumb").addEventListener("click", function(){ openLb(i); });
+    cell.querySelector(".cap").addEventListener("click", function(e){
+      var b = e.target.closest(".mini");
+      if(!b) return;
+      var a = b.dataset.a;
+      if(a === "left"  && i > 0) move(i, i-1);
+      else if(a === "right" && i < frames.length-1) move(i, i+1);
+      else if(a === "dl") saveBlob(f.blob, baseName() + "_" + String(i+1).padStart(3,"0") + "_" + tcFile(f.t) + ext());
+      else if(a === "del") remove(i);
+    });
+
+    sheet.appendChild(cell);
+  });
+}
+
+function move(from, to){
+  var f = frames.splice(from, 1)[0];
+  frames.splice(to, 0, f);
+  render();
+}
+function remove(i){
+  URL.revokeObjectURL(frames[i].url);
+  frames.splice(i, 1);
+  render();
+}
+
+/* ============ drag reorder ============ */
+var dragFrom = null;
+
+sheet.addEventListener("dragstart", function(e){
+  var cell = e.target.closest(".cell");
+  if(!cell) return;
+  dragFrom = +cell.dataset.i;
+  cell.classList.add("drag");
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/plain", String(dragFrom));
+});
+sheet.addEventListener("dragend", function(){ dragFrom = null; clearMarks(); });
+sheet.addEventListener("dragover", function(e){
+  if(dragFrom === null) return;
+  e.preventDefault();
+  var cell = e.target.closest(".cell");
+  if(!cell) return;
+  clearMarks();
+  var box = cell.getBoundingClientRect();
+  cell.classList.add(e.clientX < box.left + box.width/2 ? "drop-before" : "drop-after");
+});
+sheet.addEventListener("drop", function(e){
+  if(dragFrom === null) return;
+  e.preventDefault();
+  var cell = e.target.closest(".cell");
+  if(!cell) return;
+  var over = +cell.dataset.i;
+  var box = cell.getBoundingClientRect();
+  var to = (e.clientX >= box.left + box.width/2) ? over + 1 : over;
+  if(dragFrom < to) to--;
+  clearMarks();
+  if(to !== dragFrom) move(dragFrom, to);
+  dragFrom = null;
+});
+function clearMarks(){
+  [].forEach.call(sheet.querySelectorAll(".cell"), function(c){
+    c.classList.remove("drop-before","drop-after","drag");
+  });
+}
+
+/* ============ selection / bulk ============ */
+$("selAll").addEventListener("click", function(){ frames.forEach(function(f){ f.sel = true; }); render(); });
+$("selNone").addEventListener("click", function(){ frames.forEach(function(f){ f.sel = false; }); render(); });
+$("selInv").addEventListener("click", function(){ frames.forEach(function(f){ f.sel = !f.sel; }); render(); });
+$("sortTime").addEventListener("click", function(){
+  frames.sort(function(a,b){ return a.t - b.t; });
+  render();
+  toast("Urutan dikembalikan ke timecode.");
+});
+$("delSel").addEventListener("click", function(){
+  var n = frames.filter(function(f){ return f.sel; }).length;
+  if(!confirm("Hapus " + n + " frame terpilih?")) return;
+  frames = frames.filter(function(f){
+    if(f.sel){ URL.revokeObjectURL(f.url); return false; }
+    return true;
+  });
+  render();
+});
+$("delAll").addEventListener("click", function(){
+  if(!confirm("Kosongkan seluruh contact sheet?")) return;
+  frames.forEach(function(f){ URL.revokeObjectURL(f.url); });
+  frames = [];
+  render();
+});
+
+/* ============ lightbox ============ */
+var lb = $("lb");
+function openLb(i){
+  var f = frames[i];
+  $("lbImg").src = f.url;
+  $("lbCap").textContent =
+    String(i+1).padStart(3,"0") + "  |  " + tc(f.t) +
+    (f.drift > 0.05 ? "  |  meleset " + Math.round(f.drift*1000) + "ms" : "") +
+    "  |  " + bytes(f.blob.size);
+  lb.classList.add("on");
+}
+lb.addEventListener("click", function(){ lb.classList.remove("on"); });
+document.addEventListener("keydown", function(e){
+  if(e.key === "Escape") lb.classList.remove("on");
+});
+
+/* ============ download ============ */
+function saveBlob(blob, name){
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = name; a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 4000);
+}
+
+$("zipAll").addEventListener("click", function(){ exportZip(frames); });
+$("zipSel").addEventListener("click", function(){
+  exportZip(frames.filter(function(f){ return f.sel; }));
+});
+
+async function exportZip(list){
+  if(!list.length) return;
+  toast("Menyusun ZIP\u2026");
+  var files = [];
+  for(var i = 0; i < list.length; i++){
+    var pos = frames.indexOf(list[i]) + 1;
+    var buf = new Uint8Array(await list[i].blob.arrayBuffer());
+    files.push({
+      name: baseName() + "_" + String(pos).padStart(3,"0") + "_" + tcFile(list[i].t) + ext(),
+      data: buf
+    });
+  }
+  saveBlob(buildZip(files), baseName() + "_frames_" + list.length + ".zip");
+  toast(list.length + " frame diekspor.");
+}
+
+/* ---- ZIP writer minimal (stored, tanpa kompresi) ----
+   PNG/JPG sudah terkompresi, jadi deflate tidak memberi keuntungan berarti
+   dan ini membebaskan tool dari dependensi library eksternal. */
+var CRC_TABLE = (function(){
+  var t = new Uint32Array(256);
+  for(var n = 0; n < 256; n++){
+    var c = n;
+    for(var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(buf){
+  var c = 0xFFFFFFFF;
+  for(var i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function buildZip(files){
+  var enc = new TextEncoder();
+  var d = new Date();
+  var dosTime = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+  var dosDate = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+
+  var parts = [], central = [], offset = 0;
+
+  files.forEach(function(f){
+    var nameB = enc.encode(f.name);
+    var crc = crc32(f.data);
+    var size = f.data.length;
+
+    var lh = new Uint8Array(30 + nameB.length);
+    var lv = new DataView(lh.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(4, 20, true);
+    lv.setUint16(6, 0x0800, true);
+    lv.setUint16(8, 0, true);
+    lv.setUint16(10, dosTime, true);
+    lv.setUint16(12, dosDate, true);
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, size, true);
+    lv.setUint32(22, size, true);
+    lv.setUint16(26, nameB.length, true);
+    lh.set(nameB, 30);
+
+    var cd = new Uint8Array(46 + nameB.length);
+    var cv = new DataView(cd.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0x0800, true);
+    cv.setUint16(10, 0, true);
+    cv.setUint16(12, dosTime, true);
+    cv.setUint16(14, dosDate, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, size, true);
+    cv.setUint32(24, size, true);
+    cv.setUint16(28, nameB.length, true);
+    cv.setUint32(42, offset, true);
+    cd.set(nameB, 46);
+
+    parts.push(lh, f.data);
+    central.push(cd);
+    offset += lh.length + size;
+  });
+
+  var cdSize = central.reduce(function(a, b){ return a + b.length; }, 0);
+  var eocd = new Uint8Array(22);
+  var ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, files.length, true);
+  ev.setUint16(10, files.length, true);
+  ev.setUint32(12, cdSize, true);
+  ev.setUint32(16, offset, true);
+
+  return new Blob(parts.concat(central, [eocd]), { type: "application/zip" });
+}
+
+/* ============ guards ============ */
+window.addEventListener("beforeunload", function(e){
+  if(frames.length){ e.preventDefault(); e.returnValue = ""; }
+});
+
+syncChips();
+render();
 })();
 </script>
 </body>
